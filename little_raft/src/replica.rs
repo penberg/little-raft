@@ -385,6 +385,7 @@ where
                 success,
                 term,
                 last_index,
+                non_matching_idx,
             } => {
                 if term > self.current_term {
                     // Become follower if another node's term is higher.
@@ -392,12 +393,15 @@ where
                     self.become_follower(term);
                 } else if success {
                     // Update information about the peer's logs.
-                    self.next_index.insert(from_id, last_index + 1);
-                    self.match_index.insert(from_id, last_index);
+                    let next_index = *self.next_index.get(&from_id).unwrap_or(&0);
+                    self.next_index.insert(from_id, std::cmp::max(next_index, last_index + 1));
+                    let match_index = *self.match_index.get(&from_id).unwrap_or(&0);
+                    self.match_index.insert(from_id, std::cmp::max(match_index, last_index));
                 } else {
                     // Update information about the peer's logs.
+                    let next_index = std::cmp::min(non_matching_idx, last_index + 1);
                     self.next_index
-                        .insert(from_id, self.next_index[&from_id] - 1);
+                        .insert(from_id, next_index);
                 }
             }
             _ => {}
@@ -476,7 +480,7 @@ where
         commit_index: usize,
     ) {
         // Check that the leader's term is at least as large as ours.
-        if self.current_term > term {
+        if term < self.current_term {
             self.cluster.lock().unwrap().send_message(
                 from_id,
                 Message::AppendEntryResponse {
@@ -484,6 +488,7 @@ where
                     term: self.current_term,
                     success: false,
                     last_index: self.log.len() - 1,
+                    non_matching_idx: prev_log_index,
                 },
             );
 
@@ -499,6 +504,7 @@ where
                     term: self.current_term,
                     success: false,
                     last_index: self.log.len() - 1,
+                    non_matching_idx: prev_log_index,
                 },
             );
 
@@ -535,6 +541,7 @@ where
                 term: self.current_term,
                 success: true,
                 last_index: self.log.len() - 1,
+                non_matching_idx: 0,
             },
         );
     }
@@ -649,6 +656,7 @@ where
                     term: self.current_term,
                     success: false,
                     last_index: self.log.len() - 1,
+                    non_matching_idx: 0, // FIXME
                 },
             );
         }

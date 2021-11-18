@@ -41,6 +41,7 @@ where
         term: usize,
         success: bool,
         last_index: usize,
+        non_matching_idx: usize,
     },
 
     /// VoteRequest is used by Candidates to solicit votes for themselves.
